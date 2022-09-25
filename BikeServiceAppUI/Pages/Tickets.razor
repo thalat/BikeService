@@ -1,0 +1,207 @@
+﻿@page "/Tickets/{Id}"
+@using System.Globalization
+@inject IServiceTicketData serviceTicketData
+@inject IClientData clientData
+@inject IStatusData statusData
+@inject IRepairItemData repairItemData
+@inject IServiceSetData serviceSetData
+@inject NavigationManager navManager
+
+<div id="main-container" class="container">
+
+    <div class="row title-breadcrumbs">
+
+        <div class="col-sm-6">
+            <span id="ticket-type">
+                <b>Status </b>
+            </span>
+            @if (serviceTicket is not null)
+            {
+                <span id="ticket-type">@serviceTicket.ServiceTicketStatus.StatusName</span>
+            }
+        </div>
+
+        <div class="col-sm-6">
+            <div class="table-before-details">
+                <div class="btn-group">
+                    <a @onclick="(() => ClosePage())" class="btn-btn-default">
+                        <span class="btn-icon"></span>
+                        Powrót do tablicy
+                    </a>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <div style="margin-top:50px">
+        <div class="show_ticket_view">
+
+            <section>
+                <h3 style="display:flex">Klient</h3>
+                <div class="row">
+                    <div class="col-sm-3">
+                        <div>
+                            <strong>Telefon</strong>
+                            <br>
+                            @if (serviceTicket is not null)
+                            {
+                                <p>@serviceTicket.Client.PhoneNumber</p>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div>
+                            <strong>Nazwisko</strong>
+                            <br>
+                            @if (serviceTicket is not null)
+                            {
+                                <p>@serviceTicket.Client.LastName</p>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div>
+                            <strong>Imię</strong>
+                            <br>
+                            @if (serviceTicket is not null)
+                            {
+                                <p>@serviceTicket.Client.LastName</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h3>@serviceTicket?.RepairItem.ProductType.ToString()</h3>
+                <div class="row">
+                    <div class="col-sm-3">
+                        <div>
+                            <strong>Marka</strong>
+                            <br>
+                            <p>@serviceTicket?.RepairItem.Brand</p>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div>
+                            <strong>Model</strong>
+                            <br>
+                            <p>@serviceTicket?.RepairItem.Model</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="service-details">
+
+                <div class="tag-container" style="display:flex; align-items: center; padding: 10px 28px;">
+                    <div class="ticket-label">Szczegóły zgłoszenia</div>
+                    <div style="display:flex;align-items:center;justify-content:flex-end;flex-grow:1;">
+                        <div>
+                            <strong style="font-size: 14px;font-weight: 400;">
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <div class="row">
+                                            <div class="col-md-12">
+                                                <strong>Przewidywana data realizacji</strong>
+                                                <br>
+                                                <p>@serviceTicket?.ExpectedEndDate.ToString("MM.dd.yyyy")</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-12">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <p></p>
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col" style="color: #595d6e; font-size: 14px; font-weight: 500;">Pakiety i usługi</th>
+                                            <th scope="col" style="color: #595d6e; font-size: 14px;font-weight: 500; width: 10%; text-align: center;">Cena</th>
+                                            <th scope="col" style="color: #595d6e; font-size: 14px;font-weight: 500; width: 5%; text-align: center;">&nbsp;</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody id="service_servs_show">
+                                        <tr id="tr_sserv_9666">
+                                            <td>
+                                                <p>@serviceTicket?.ServiceSet.ServiceSet</p>
+                                            </td>
+                                            <td>
+                                                <div class="input-group mb-3">
+                                                  <span class="input-group-text">zł</span>
+                                                  <input type="text" class="form-control" placeholder="@serviceTicket?.ServiceSet.Price" step=".01" aria-label="Amount (to the nearest zloty)" @oninput="((txt) => OnServiceSetPriceChangeInput((string)txt.Value))">
+                                                </div>
+                                            </td>
+                                            <td style="width: 2%;text-align: center; font-size: 15px;">
+                                                <button @onclick="() => DeleteServiceSetClick(serviceTicket)" class="btn btn-danger btn-xs rm" data-toggle="modal" data-target="#modal_set_9666">Usuń</button>
+                                                <div id="modal_set_9666" class="modal fade rm_modal" role="dialog" style="z-index: -1;">
+                                                    <div class="modal-dialog modal-sm">
+                                                        <div class="modal-content">
+                                                            <div class="modal-header">
+                                                             <button type="button" class="close" data-dismiss="modal">x</button>
+                                                                <h4 class="modal-title">Czy na pewno chcesz usunąć tę pozycję?</h4>
+                                                            </div>
+                                                            <div class="modal-body">
+                                                                <a class="btn btn-danger">Usuń</a>
+                                                                <button type="button" class="btn btn-default" data-dismiss="modal">Zamknij</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                            </td>
+                                        </tr>
+                                    </tbody>
+
+
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+@code {
+
+    [Parameter]
+    public string Id { get; set; }
+
+    private ServiceTicketModel serviceTicket;
+
+    protected async override Task OnInitializedAsync()
+    {
+        serviceTicket = await serviceTicketData.GetServiceTicket(Id);
+    }
+
+    private void ClosePage()
+    {
+        navManager.NavigateTo("/");
+    }
+
+    private async Task OnServiceSetPriceChangeInput(string price)
+    {
+        decimal decPrice = Decimal.Parse(price, CultureInfo.InvariantCulture);
+        serviceTicket.ServiceSet.Price = decPrice;
+        await serviceTicketData.UpdateServiceTicket(serviceTicket);
+    }
+
+    private async Task DeleteServiceSetClick(ServiceTicketModel serviceTicket)
+    {
+        ServiceSetModel serviceSet = serviceTicket.ServiceSet;
+        await serviceSetData.DeleteServiceSet(serviceSet);
+    }
+
+}

@@ -1,0 +1,295 @@
+﻿@page "/Create"
+@using BikeServiceAppUI.Components
+@using BikeServiceAppUI.Models
+@using Syncfusion.Blazor.DropDowns
+@using Blazored.Typeahead
+
+@inject IServiceTicketData serviceTicketData
+@inject IClientData clientData
+@inject IStatusData statusData
+@inject IRepairItemData repairItemData
+@inject IServiceSetData serviceSetData
+@inject NavigationManager navManager
+@inject ProtectedSessionStorage sessionStorage
+
+
+<div>
+    <div>
+        <div>
+            <div>
+                <button @onclick="ClosePage"></button>
+            </div>
+            @*@if (statuses is not null)
+            {
+                
+            }*@
+            @*<EditForm Model="serviceTicket" OnValidSubmit="CreateServiceTicket">
+                <DataAnnotationsValidator></DataAnnotationsValidator>
+                <ValidationSummary></ValidationSummary>
+                <div>
+                    <label for="serviceTicket-text">ServiceTicket</label>
+                    <div>Przyjmij serwisik mordo</div>
+                    <InputText id="serviceTicket-text" @bind-Value="serviceTicket.RepairItem.Brand"></InputText>
+                </div>
+
+                <div>
+                    <label for="description">Description</label>
+                    <div>Uwagi</div>
+                    <InputTextArea id="description" @bind-Value="serviceTicket.Description"></InputTextArea>
+                </div>
+
+                <div>
+                    <button type="submit">Przyjmij</button>
+                </div>
+
+                <div>
+                    <label for="serviceSet">Pakiet serwisowy</label>
+                    <div>Wybierz pakiet serwisowy.</div>
+                    <MyInputRadioGroup id="serviceSet" @bind-Value="serviceSetInUse"></MyInputRadioGroup>
+                </div>
+            </EditForm>*@
+
+            <div class="row">
+                <div>Wyszukaj klienta poprzez numer telefonu</div>
+                <BlazoredTypeahead SearchMethod="SearchClients" @bind-Value="foundClient">
+
+
+                        <SelectedTemplate >@context.Name @context.LastName</SelectedTemplate>
+
+                        <ResultTemplate>@context.Name <strong>@context.LastName</strong></ResultTemplate>
+
+
+                </BlazoredTypeahead>
+            </div>
+
+
+
+
+            <EditForm Model="@client" OnValidSubmit="CreateClient">
+                <DataAnnotationsValidator></DataAnnotationsValidator>
+                <ValidationSummary></ValidationSummary>
+                <h3>Klient</h3>
+                <div class="row">
+
+                    <div class="col-sm-4">
+                        <label for="client-Name">Imię</label>
+                        <InputText class="form-control" id="client-Name" @bind-Value="client.Name" @onclick="(() => ConvertFoundClient())"></InputText>
+                    </div>
+
+                    <div class="col-sm-4">
+                        <label for="client-LastName">Nazwisko</label>
+                        <InputText class="form-control" id="client-LastName" @bind-Value="client.LastName"></InputText>
+                    </div>
+
+                    <div class="col-sm-4">
+                        <label for="client-PhoneNumber">Telefon</label>
+                        <InputText class="form-control" id="client-PhoneNumber" @bind-Value="client.PhoneNumber"></InputText>
+                    </div>
+
+
+                </div>
+
+
+
+
+            </EditForm>
+
+            <EditForm Model="@repairItem">
+                <DataAnnotationsValidator></DataAnnotationsValidator>
+                <ValidationSummary></ValidationSummary>
+
+                <div class="row">
+                    <div>Serwisowany produkt</div>
+
+                    <div class="col-sm-4">
+                        <select @bind="repairItem.ProductType">
+                            @foreach (ProductType p in (ProductType[]) Enum.GetValues(typeof(ProductType)))
+                            {
+                                <option value="@p">@p.ToString()</option>
+                            }
+                        </select>
+
+                    </div>
+
+                    <div class="col-sm-4">
+                        <label for="repairItem-brand">Marka</label>
+                        <InputText class="form-control" id="repairItem-brand" @bind-Value="repairItem.Brand"></InputText>
+                    </div>
+
+                    <div class="col-sm-4">
+                        <label for="repairItem-model">Model</label>
+                        <InputText class="form-control" id="repairItem-model" @bind-Value="repairItem.Model"></InputText>
+                    </div>
+                </div>
+
+            </EditForm>
+
+            <h3>Zgłoszenie serwisowe</h3>
+
+            @*<EditForm Model="@serviceSet">
+                <DataAnnotationsValidator></DataAnnotationsValidator>
+                <ValidationSummary></ValidationSummary>
+
+                <div>
+                    <div class="row">
+                        <div class="col-sm-4">
+                            <select @bind="serviceSet">
+                                @foreach (ServiceSetModel s in serviceSets)
+                                {
+                                    <option value="@s">@s.ServiceSet.ToString())</option>
+                                }
+                            </select>
+
+                            <label for="serviceSet-Price">Cena</label>
+                            <InputNumber class="form-control" id="serviceSet-Price" @bind-Value="serviceSet.Price"></InputNumber>
+                        </div>
+                        
+                    </div>
+                </div>
+
+            </EditForm>*@
+            
+
+        </div>
+    </div>
+
+</div>
+
+
+@code {
+    private CreateClientModel client = new();
+    private CreateServiceSetModel serviceSet = new();
+    private CreateRepairItemModel repairItem = new();
+    private CreateServiceTicketModel serviceTicket = new();
+
+    private List<ClientModel> clients = new();
+    private List<StatusModel> statuses;
+    private List<ProductType> productTypes;
+    private List<ServiceSetModel> serviceSets;
+
+    private ClientModel foundClient = new();
+    private ClientModel realClient = new();
+    private ServiceSetModel serviceSetInUse;
+    private RepairItemModel repairItemInUse;
+
+
+    private bool clientFound = false;
+    private string searchText = "";
+    private string selectedProductType;
+    private bool selectedRepairItemFromDB;
+
+    protected async override Task OnInitializedAsync()
+    {
+        statuses = await statusData.GetAllStatuses();
+        clients = await clientData.GetAllClients();
+        serviceSets = await serviceSetData.GetAllServiceSets();
+    }
+
+    protected async override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadFilterState();
+            await FilterClients();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadFilterState()
+    {
+        var stringResults = await sessionStorage.GetAsync<string>(nameof(searchText));
+        searchText = stringResults.Success ? stringResults.Value : "";
+    }
+
+    private async Task FilterClients()
+    {
+        if (string.IsNullOrWhiteSpace(searchText) == false)
+        {
+            var output = clients.Where(s => s.PhoneNumber.Contains(searchText, StringComparison.InvariantCultureIgnoreCase)).ToList();
+            clients = output;
+        }
+        await SaveFilterState();
+
+    }
+    private async Task SaveFilterState()
+    {
+        await sessionStorage.SetAsync(nameof(searchText), searchText);
+    }
+
+    private void ClosePage()
+    {
+        navManager.NavigateTo("/");
+    }
+
+    //private async Task CreateServiceTicket()
+    //{
+    //    ServiceTicketModel s = new();
+    //    s.Client = clientInUse;
+    //    s.ExpectedEndDate = serviceTicket.ExpectedEndDate;
+    //    s.RepairParts = serviceTicket.RepairParts;
+    //    s.ServiceTicketStatus = statuses.Where(s => s.Id == serviceTicket.StatusId).FirstOrDefault();
+    //    s.ServiceSet = serviceSetInUse;
+    //    s.RepairItem = repairItemInUse;
+
+    //    if (s.ServiceTicketStatus is null)
+    //    {
+    //        serviceTicket.StatusId = "";
+    //        return;
+    //    }
+
+    //    await serviceTicketData.CreateServiceTicket(s, clientInUse);
+    //    serviceTicket = new(); 
+    //    ClosePage();
+    //}
+
+
+
+    private void CreateClient()
+    {
+        //ClientModel c = new();
+        //c.Name = client.Name;
+        //c.LastName = client.LastName;
+        //c.PhoneNumber = client.PhoneNumber;
+        realClient = new();
+        realClient.Name = client.Name;
+        realClient.LastName = client.LastName;
+        realClient.PhoneNumber = client.PhoneNumber;
+    }
+
+    private void ConvertFoundClient()
+    {
+        client.Name = foundClient.Name;
+        client.LastName = foundClient.LastName;
+        client.PhoneNumber = foundClient.PhoneNumber;
+    }
+
+    private void CreateServiceSet(ServiceSet serviceSet)
+    {
+        serviceSetInUse = new(serviceSet);
+    }
+
+    private void CreateRepairItem()
+    {
+        repairItemInUse = new();
+        repairItemInUse.Brand = repairItem.Brand;
+        repairItemInUse.Model = repairItem.Model;
+        repairItemInUse.ProductType = repairItem.ProductType;
+    }
+
+    private async Task OnSearchInput(string searchInput)
+    {
+        searchText = searchInput;
+        await FilterClients();
+    }
+
+    private async Task<IEnumerable<ClientModel>> SearchClients(string searchInput)
+    {
+        return await Task.FromResult(clients.Where(s => s.PhoneNumber.Contains(searchInput, StringComparison.InvariantCultureIgnoreCase)).ToList());
+    }
+    private async Task FoundRepairItems()
+    {
+        
+    }
+
+
+}

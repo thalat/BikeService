@@ -1,0 +1,177 @@
+﻿@page "/SampleData"
+@inject IServiceTicketData serviceTicketData
+@inject IClientData clientData
+@inject IStatusData statusData
+@inject IRepairItemData repairItemData
+@inject IServiceSetData serviceSetData
+
+<h3>Sample Data</h3>
+
+@if (serviceSetsCreated)
+{
+    <h4>ServiceSets have been created</h4>
+}
+else
+{
+    <button class="btn btn-primary" @onclick="CreateServiceSet">Create ServiceSets</button>
+}
+
+@if (statusesCreated)
+{
+    <h4>Statuses have been created</h4>
+}
+else
+{
+    <button class="btn btn-primary" @onclick="CreateStatuses">Create Statuses</button>
+}
+
+<button class="btn btn-danger" @onclick="GenerateSampleData">Generate Sample Data</button>
+
+@code {
+    private bool serviceSetsCreated = false;
+    private bool statusesCreated = false;
+
+    private async Task GenerateSampleData()
+    {
+        ClientModel client = new()
+            {
+                Name = "Piotrek",
+                LastName = "Makówka",
+                PhoneNumber = "504265610",
+                ObjectIdentifier = "abc-123"
+            };
+
+        ClientModel client2 = new()
+            {
+                Name = "Paweł",
+                LastName = "Karkoszka",
+                PhoneNumber = "601589371",
+                ObjectIdentifier = "she-said"
+            };
+
+
+        await clientData.CreateClient(client);
+        await clientData.CreateClient(client2);
+
+        var foundClient = await clientData.GetClientFromAuthentication("abc-123");
+        var foundClient2 = await clientData.GetClientFromAuthentication("she-said");
+
+        var statuses = await statusData.GetAllStatuses();
+        var serviceSets = await serviceSetData.GetAllServiceSets();
+
+
+
+        ServiceTicketModel serviceTicket = new()
+            {
+                ObjectIdentifier = "service-ticket-1",
+                RepairParts = new List<RepairPartModel>
+                {
+                    new RepairPartModel()
+                    {
+                        Name = "łancuch",
+                        Price = 65
+                    },
+                    new RepairPartModel()
+                    {
+                        Name = "korba",
+                        Price = 80
+                    }
+                },
+                ExpectedEndDate = new DateTime(2022, 08, 05),
+                ServiceSet = serviceSets[0],
+                RepairItem = new() { Brand = "Kross", Model = "Hexagon 2.0" },
+                Client = foundClient,
+                ServiceTicketStatus = statuses[0]
+
+
+            };
+
+        await serviceTicketData.CreateServiceTicket(serviceTicket, foundClient);
+
+        ServiceTicketModel serviceTicket2 = new()
+            {
+                ObjectIdentifier = "service-ticket-2",
+                RepairParts = new List<RepairPartModel>
+                {
+                    new RepairPartModel()
+                    {
+                        Name = "piasta",
+                        Price = 62
+                    },
+                    new RepairPartModel()
+                    {
+                        Name = "support",
+                        Price = 30
+                    }
+                },
+                ExpectedEndDate = new DateTime(2022, 09, 21),
+                ServiceSet = serviceSets[1],
+                RepairItem = new (){Brand="Merida", Model="BigNine200"},
+                Client = foundClient2,
+                ServiceTicketStatus = statuses[1]
+                
+            };
+
+        await serviceTicketData.CreateServiceTicket(serviceTicket2, foundClient2);
+    }
+    
+
+    private async Task CreateServiceSet()
+    {
+        var serviceSets = await serviceSetData.GetAllServiceSets();
+        if (serviceSets?.Count > 0)
+        {
+            return;
+        }
+
+        ServiceSetModel przeglad = new(ServiceSet.Zerowy)
+        {
+            Description = "Przeglądzik zerowy za zero złoty",
+            ServiceSet = ServiceSet.Zerowy
+        };
+        await serviceSetData.CreateServiceSet(przeglad);
+
+        przeglad = new(ServiceSet.ZerowyElektryczny)
+        {
+            Description = "Przeglądzik zerowy dla elektryka",
+            ServiceSet = ServiceSet.Roczny
+        };
+        await serviceSetData.CreateServiceSet(przeglad);
+        serviceSetsCreated = true;
+    }
+
+    private async Task CreateStatuses()
+    {
+        var statuses = await statusData.GetAllStatuses();
+
+        if (statuses?.Count > 0)
+        {
+            return;
+        }
+
+        StatusModel stat = new()
+        {
+            StatusName = "PRZYJĘCIE DO SERWISU"
+        };
+        await statusData.CreateStatus(stat);
+
+        stat = new()
+        {
+            StatusName = "SERWIS ZREALIZOWANY"
+        };
+        await statusData.CreateStatus(stat);
+
+        stat = new()
+        {
+            StatusName = "W TRAKCIE NAPRAWY"
+        };
+        await statusData.CreateStatus(stat);
+
+        stat = new()
+        {
+            StatusName = "WYDANIE"
+        };
+        await statusData.CreateStatus(stat);
+        statusesCreated = true;
+    }
+}

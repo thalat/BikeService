@@ -1,0 +1,182 @@
+﻿@using Microsoft.AspNetCore.Components.RenderTree;
+
+@page "/"
+
+@inject IServiceTicketData serviceTicketData
+@inject IClientData clientData
+@inject IStatusData statusData
+@inject IRepairItemData repairItemData
+@inject IServiceSetData serviceSetData
+@inject NavigationManager navManager
+@inject ProtectedSessionStorage sessionStorage
+
+<h1>Bieżące zgłoszenia</h1>
+<div>
+    <button @onclick="(() => OpenCreatePage())">Dodaj zgłoszenie serwisowe</button>
+</div>
+
+<div>
+    @if (statuses is not null)
+    {
+        <div>
+            <div>Status</div>
+            <button @onclick="(() => OnStatusClick())">All</button>
+            @foreach(var s in statuses)
+            {
+                <button @onclick="(() => OnStatusClick(s.StatusName))">@s.StatusName</button>
+            }
+        </div>
+
+    }
+    <div>
+        <button @onclick="(() => OnStatusClick())">PRZYJĘTE DO SERWISU</button>
+        <button @onclick="(() => OnStatusClick())">W TRAKCIE NAPRAWY</button>
+        <button @onclick="(() => OnStatusClick())">SERWIS ZREALIZOWANY</button>
+        <button @onclick="(() => OnStatusClick())">WYDANIE</button>
+    </div>
+    <input type="text" placeholder="Wyszukaj" aria-label="Search box" @oninput="((txt) => OnSearchInput((string)txt.Value))"/>
+</div>
+
+<div>
+    <div>
+        @if (serviceTickets is not null)
+        {
+            <Virtualize Items="@serviceTickets" Context="s" OverscanCount="10">
+                <div>
+                    <div>
+                        <div @onclick="(() => OpenDetails(s))">@GetTicketUITitle(s)</div>
+                        <div @onclick="(() => OpenDetails(s))">@GetTicketUIFullName(s)</div>
+                        <div @onclick="(() => OpenDetails(s))">@GetTicketUIEndDate(s)</div>
+                        <span class="oi oi-caret-top"></span>
+                    </div>
+                    <div>
+
+                    </div>
+                </div>
+            </Virtualize>
+        }
+    </div>
+</div>
+@code{
+
+    private List<ServiceTicketModel> serviceTickets;
+    private List<RepairItemModel> repairItems;
+    private List<StatusModel> statuses;
+    private List<ServiceSetModel> serviceSets;
+
+    private string selectedServiceTicket = "All";
+    private string selectedStatus = "All";
+    private string searchText = "";
+
+    protected async override Task OnInitializedAsync()
+    {
+
+        serviceSets = await serviceSetData.GetAllServiceSets();
+        statuses = await statusData.GetAllStatuses();
+        var status = statuses[0];
+
+    }
+
+    protected async override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadFilterState();
+            await FilterServiceTickets();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadFilterState()
+    {
+        var stringResults = await sessionStorage.GetAsync<string>(nameof(selectedStatus));
+        selectedStatus = stringResults.Success ? stringResults.Value : "All";
+
+        stringResults = await sessionStorage.GetAsync<string>(nameof(selectedServiceTicket));
+        selectedServiceTicket = stringResults.Success ? stringResults.Value : "All";
+
+        stringResults = await sessionStorage.GetAsync<string>(nameof(searchText));
+        searchText = stringResults.Success ? stringResults.Value : "";
+
+        
+    }
+
+    private async Task SaveFilterState()
+    {
+        await sessionStorage.SetAsync(nameof(selectedStatus), selectedStatus);
+        await sessionStorage.SetAsync(nameof(searchText), searchText);
+        await sessionStorage.SetAsync(nameof(selectedServiceTicket), selectedServiceTicket);
+    }
+
+    private async Task FilterServiceTickets()
+    {
+        var output = await serviceTicketData.GetAllServiceTicketModelsInService();
+
+        if (selectedStatus != "All")
+        {
+            output = output.Where(s => s.ServiceTicketStatus?.StatusName.ToString() == selectedStatus).ToList();
+        }
+
+        if (string.IsNullOrWhiteSpace(searchText) == false)
+        {
+            output = output.Where(
+                s => s.Client.Name.Contains(searchText, StringComparison.InvariantCultureIgnoreCase) ||
+                s.Client.LastName.Contains(searchText, StringComparison.InvariantCultureIgnoreCase) ||
+                s.RepairItem.Brand.Contains(searchText, StringComparison.InvariantCultureIgnoreCase) ||
+                s.RepairItem.Model.Contains(searchText, StringComparison.InvariantCultureIgnoreCase)
+            ).ToList();
+        }
+
+        else
+        {
+            output = output.OrderByDescending(s => s.ExpectedEndDate).ToList();
+        }
+
+        serviceTickets = output;
+
+        await SaveFilterState();
+    }
+
+    //private async Task OrderByStatus()
+    //{
+
+    //}
+    private async Task OnSearchInput(string searchInput)
+    {
+        searchText = searchInput;
+        await FilterServiceTickets();
+    }
+
+    private async Task OnStatusClick(string status = "All")
+    {
+        selectedStatus = status;
+        await FilterServiceTickets();
+    }
+
+    private string GetTicketUITitle(ServiceTicketModel serviceTicket)
+    {
+        return $"{serviceTicket.RepairItem.Brand} {serviceTicket.RepairItem.Model}";
+    }
+
+    private string GetTicketUIFullName(ServiceTicketModel serviceTicket)
+    {
+        return $"{serviceTicket.Client.Name} {serviceTicket.Client.LastName}";
+    }
+
+    private string GetTicketUIEndDate(ServiceTicketModel serviceTicket)
+    {
+        return $"{serviceTicket.ExpectedEndDate.ToString()}";
+    }
+
+    private void OpenDetails(ServiceTicketModel serviceTicket)
+    {
+        navManager.NavigateTo($"/Tickets/{serviceTicket.Id}");
+    }
+
+    private void OpenCreatePage()
+    {
+        navManager.NavigateTo("/create");
+    }
+}
+
+
